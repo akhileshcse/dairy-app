@@ -20,6 +20,75 @@ export default function Livestock() {
         dry: 0
     });
 
+    // Form State
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [formData, setFormData] = useState({
+        cows_milking: '', cows_dry: '', cows_heifer: '', cows_calves: '',
+        buffaloes_milking: '', buffaloes_dry: '', buffaloes_heifer: '', buffaloes_calves: '',
+        health_notes: ''
+    });
+
+    const handleInputChange = (e) => {
+        setFormData({ ...formData, [e.target.name]: e.target.value });
+    };
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setIsSubmitting(true);
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) throw new Error("Not authenticated");
+
+            const { error } = await supabase.from('livestock_logs').insert([{
+                user_id: user.id,
+                type: 'Count Update',
+                cows_milking: Number(formData.cows_milking) || 0,
+                cows_dry: Number(formData.cows_dry) || 0,
+                cows_heifer: Number(formData.cows_heifer) || 0,
+                cows_calves: Number(formData.cows_calves) || 0,
+                buffaloes_milking: Number(formData.buffaloes_milking) || 0,
+                buffaloes_dry: Number(formData.buffaloes_dry) || 0,
+                buffaloes_heifer: Number(formData.buffaloes_heifer) || 0,
+                buffaloes_calves: Number(formData.buffaloes_calves) || 0,
+                health_notes: formData.health_notes || null
+            }]);
+
+            if (error) throw error;
+
+            // Refresh data
+            const { data, fetchError } = await supabase
+                .from('livestock_logs')
+                .select('*')
+                .eq('user_id', user.id)
+                .order('created_at', { ascending: false });
+            if (!fetchError) {
+                setLivestockData(data || []);
+                if (data && data.length > 0) {
+                    const latest = data[0];
+                    setSummary({
+                        totalCows: (latest.cows_milking || 0) + (latest.cows_dry || 0) + (latest.cows_heifer || 0) + (latest.cows_calves || 0),
+                        totalBufs: (latest.buffaloes_milking || 0) + (latest.buffaloes_dry || 0) + (latest.buffaloes_heifer || 0) + (latest.buffaloes_calves || 0),
+                        milking: (latest.cows_milking || 0) + (latest.buffaloes_milking || 0),
+                        dry: (latest.cows_dry || 0) + (latest.buffaloes_dry || 0)
+                    });
+                }
+            }
+
+            setIsModalOpen(false);
+            setFormData({
+                cows_milking: '', cows_dry: '', cows_heifer: '', cows_calves: '',
+                buffaloes_milking: '', buffaloes_dry: '', buffaloes_heifer: '', buffaloes_calves: '',
+                health_notes: ''
+            });
+        } catch (err) {
+            console.error("Error submitting:", err.message);
+            alert("Failed to save entry: " + err.message);
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
     useEffect(() => {
         async function fetchLivestock() {
             try {
@@ -73,7 +142,7 @@ export default function Livestock() {
                     <button className="btn-secondary flex items-center gap-2">
                         <Stethoscope className="h-4 w-4" /> Add Health Log
                     </button>
-                    <button className="btn-primary flex items-center gap-2">
+                    <button onClick={() => setIsModalOpen(true)} className="btn-primary flex items-center gap-2">
                         <Plus className="h-4 w-4" /> Register Update
                     </button>
                 </div>
@@ -164,6 +233,85 @@ export default function Livestock() {
                     </table>
                 </div>
             </div>
+
+            {/* Add Entry Modal */}
+            {isModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl overflow-y-auto max-h-[90vh]">
+                        <div className="sticky top-0 bg-white px-6 py-4 border-b border-surface-200 flex justify-between items-center z-10">
+                            <h2 className="text-lg font-bold text-surface-900">Log Livestock Update</h2>
+                            <button onClick={() => setIsModalOpen(false)} className="text-surface-400 hover:text-surface-600">
+                                ✕
+                            </button>
+                        </div>
+                        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+
+                            {/* Cows Section */}
+                            <div>
+                                <h3 className="text-md font-semibold text-blue-800 mb-3 flex items-center gap-2 border-b pb-2">
+                                    Cattle (Cows)
+                                </h3>
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                                    <div>
+                                        <label className="block text-xs font-medium text-surface-700 mb-1">Milking</label>
+                                        <input type="number" name="cows_milking" value={formData.cows_milking} onChange={handleInputChange} className="input-field border-surface-300" placeholder="0" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-surface-700 mb-1">Dry / Pregnant</label>
+                                        <input type="number" name="cows_dry" value={formData.cows_dry} onChange={handleInputChange} className="input-field border-surface-300" placeholder="0" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-surface-700 mb-1">Heifer</label>
+                                        <input type="number" name="cows_heifer" value={formData.cows_heifer} onChange={handleInputChange} className="input-field border-surface-300" placeholder="0" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-surface-700 mb-1">Calves</label>
+                                        <input type="number" name="cows_calves" value={formData.cows_calves} onChange={handleInputChange} className="input-field border-surface-300" placeholder="0" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Buffaloes Section */}
+                            <div>
+                                <h3 className="text-md font-semibold text-purple-800 mb-3 flex items-center gap-2 border-b pb-2">
+                                    Buffaloes
+                                </h3>
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                                    <div>
+                                        <label className="block text-xs font-medium text-surface-700 mb-1">Milking</label>
+                                        <input type="number" name="buffaloes_milking" value={formData.buffaloes_milking} onChange={handleInputChange} className="input-field border-surface-300" placeholder="0" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-surface-700 mb-1">Dry / Pregnant</label>
+                                        <input type="number" name="buffaloes_dry" value={formData.buffaloes_dry} onChange={handleInputChange} className="input-field border-surface-300" placeholder="0" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-surface-700 mb-1">Heifer</label>
+                                        <input type="number" name="buffaloes_heifer" value={formData.buffaloes_heifer} onChange={handleInputChange} className="input-field border-surface-300" placeholder="0" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-surface-700 mb-1">Calves</label>
+                                        <input type="number" name="buffaloes_calves" value={formData.buffaloes_calves} onChange={handleInputChange} className="input-field border-surface-300" placeholder="0" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Optional Notes */}
+                            <div>
+                                <label className="block text-sm font-medium text-surface-700 mb-1">Health Notes (Optional)</label>
+                                <textarea name="health_notes" value={formData.health_notes} onChange={handleInputChange} rows={3} className="input-field border-surface-300" placeholder="Any sickness or vet visits..." />
+                            </div>
+
+                            <div className="pt-4 flex justify-end gap-3 sticky bottom-0 bg-white py-4 border-t border-surface-100">
+                                <button type="button" onClick={() => setIsModalOpen(false)} className="btn-secondary">Cancel</button>
+                                <button type="submit" disabled={isSubmitting} className="btn-primary flex items-center gap-2">
+                                    {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save Register"}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }

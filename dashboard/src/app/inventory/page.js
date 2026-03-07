@@ -20,6 +20,88 @@ export default function Inventory() {
         healthy: 0
     });
 
+    // Form State
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [formData, setFormData] = useState({
+        feed_type: 'Cotton Seed Cake',
+        type: 'Add_Stock',
+        amount: ''
+    });
+
+    const handleInputChange = (e) => {
+        setFormData({ ...formData, [e.target.name]: e.target.value });
+    };
+
+    const feedOptions = [
+        "Cotton Seed Cake",
+        "Mustard Cake",
+        "Wheat Bran",
+        "Maize",
+        "Mineral Mixture",
+        "Green Fodder",
+        "Dry Fodder (Bhusa)"
+    ];
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setIsSubmitting(true);
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) throw new Error("Not authenticated");
+
+            const { error } = await supabase.from('inventory_logs').insert([{
+                user_id: user.id,
+                feed_type: formData.feed_type,
+                type: formData.type,
+                amount: Number(formData.amount) || 0
+            }]);
+
+            if (error) throw error;
+
+            // Refresh data
+            const { data, fetchError } = await supabase
+                .from('inventory_logs')
+                .select('*')
+                .eq('user_id', user.id)
+                .order('created_at', { ascending: false });
+
+            if (!fetchError) {
+                // Recalculate stock
+                const stockMap = {};
+                data?.forEach(log => {
+                    if (!log.feed_type) return;
+                    if (!stockMap[log.feed_type]) stockMap[log.feed_type] = { name: log.feed_type, currentStock: 0, category: log.type === 'Add_Stock' || log.type === 'Consume_Stock' ? 'Feed' : 'Other' };
+
+                    if (log.type === 'Add_Stock') stockMap[log.feed_type].currentStock += Number(log.amount);
+                    if (log.type === 'Consume_Stock') stockMap[log.feed_type].currentStock -= Number(log.amount);
+                });
+
+                const processedInventory = Object.values(stockMap).map(item => ({
+                    ...item,
+                    id: `INV-${item.name.substring(0, 3).toUpperCase()}`,
+                    status: item.currentStock < 100 ? 'Low Stock' : 'Healthy',
+                    threshold: '100 kg'
+                }));
+
+                setSummary({
+                    totalItems: processedInventory.length,
+                    lowStock: processedInventory.filter(i => i.status === 'Low Stock').length,
+                    healthy: processedInventory.filter(i => i.status === 'Healthy').length,
+                });
+                setInventoryData(processedInventory);
+            }
+
+            setIsModalOpen(false);
+            setFormData({ feed_type: 'Cotton Seed Cake', type: 'Add_Stock', amount: '' });
+        } catch (err) {
+            console.error("Error submitting:", err.message);
+            alert("Failed to save entry: " + err.message);
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
     useEffect(() => {
         async function fetchInventory() {
             try {
@@ -81,7 +163,7 @@ export default function Inventory() {
                     </p>
                 </div>
                 <div className="flex gap-3">
-                    <button className="btn-primary flex items-center gap-2">
+                    <button onClick={() => setIsModalOpen(true)} className="btn-primary flex items-center gap-2">
                         <Plus className="h-4 w-4" /> Add Item Log
                     </button>
                 </div>
@@ -174,6 +256,48 @@ export default function Inventory() {
                     </table>
                 </div>
             </div>
+
+            {/* Add Entry Modal */}
+            {isModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">
+                        <div className="px-6 py-4 border-b border-surface-200 flex justify-between items-center">
+                            <h2 className="text-lg font-bold text-surface-900">Log Inventory Update</h2>
+                            <button onClick={() => setIsModalOpen(false)} className="text-surface-400 hover:text-surface-600">
+                                ✕
+                            </button>
+                        </div>
+                        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-surface-700 mb-1">Item Category</label>
+                                <select name="feed_type" value={formData.feed_type} onChange={handleInputChange} className="input-field cursor-pointer">
+                                    {feedOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                </select>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-surface-700 mb-1">Update Type</label>
+                                    <select name="type" value={formData.type} onChange={handleInputChange} className="input-field cursor-pointer">
+                                        <option value="Add_Stock">Add Stock (Receive)</option>
+                                        <option value="Consume_Stock">Consume Stock (Use)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-surface-700 mb-1">Amount (kg) *</label>
+                                    <input required type="number" step="1" name="amount" value={formData.amount} onChange={handleInputChange} className="input-field border-surface-300" placeholder="e.g. 50" />
+                                </div>
+                            </div>
+
+                            <div className="pt-4 flex justify-end gap-3 border-t border-surface-100 mt-6 pt-4">
+                                <button type="button" onClick={() => setIsModalOpen(false)} className="btn-secondary">Cancel</button>
+                                <button type="submit" disabled={isSubmitting} className="btn-primary flex items-center gap-2">
+                                    {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save Register"}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }

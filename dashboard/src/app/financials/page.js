@@ -21,6 +21,87 @@ export default function Financials() {
         netProfit: 0
     });
 
+    // Form State
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [formData, setFormData] = useState({
+        type: 'Expense',
+        category: 'Feed & Fodder',
+        amount: '',
+        description: ''
+    });
+
+    const handleInputChange = (e) => {
+        setFormData({ ...formData, [e.target.name]: e.target.value });
+    };
+
+    const expenseCategories = [
+        "Feed & Fodder",
+        "Veterinary & Medicine",
+        "Labor & Wages",
+        "Equipment Maintenance",
+        "Utility Bills",
+        "Livestock Purchase",
+        "Other Expense"
+    ];
+
+    const incomeCategories = [
+        "Milk Sales",
+        "Livestock Sales",
+        "Manure Sales",
+        "Other Income"
+    ];
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setIsSubmitting(true);
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) throw new Error("Not authenticated");
+
+            const { error } = await supabase.from('accounting_transactions').insert([{
+                user_id: user.id,
+                type: formData.type,
+                category: formData.category,
+                amount: Number(formData.amount) || 0,
+                description: formData.description || null
+            }]);
+
+            if (error) throw error;
+
+            // Refresh data
+            const { data, fetchError } = await supabase
+                .from('accounting_transactions')
+                .select('*')
+                .eq('user_id', user.id)
+                .order('created_at', { ascending: false });
+
+            if (!fetchError) {
+                let income = 0;
+                let expense = 0;
+                data?.forEach(tx => {
+                    const amt = Number(tx.amount);
+                    if (tx.type === 'Income') income += amt;
+                    if (tx.type === 'Expense') expense += amt;
+                });
+                setSummary({
+                    totalIncome: income,
+                    totalExpense: expense,
+                    netProfit: income - expense
+                });
+                setTransactions(data || []);
+            }
+
+            setIsModalOpen(false);
+            setFormData({ type: 'Expense', category: 'Feed & Fodder', amount: '', description: '' });
+        } catch (err) {
+            console.error("Error submitting:", err.message);
+            alert("Failed to save entry: " + err.message);
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
     useEffect(() => {
         async function fetchFinancials() {
             try {
@@ -79,7 +160,7 @@ export default function Financials() {
                     <button className="btn-secondary flex items-center gap-2">
                         <Download className="h-4 w-4" /> Export Ledger
                     </button>
-                    <button className="btn-primary flex items-center gap-2">
+                    <button onClick={() => setIsModalOpen(true)} className="btn-primary flex items-center gap-2">
                         <Plus className="h-4 w-4" /> Add Transaction
                     </button>
                 </div>
@@ -181,6 +262,63 @@ export default function Financials() {
                     </table>
                 </div>
             </div>
+
+            {/* Add Entry Modal */}
+            {isModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">
+                        <div className="px-6 py-4 border-b border-surface-200 flex justify-between items-center">
+                            <h2 className="text-lg font-bold text-surface-900">Log New Transaction</h2>
+                            <button onClick={() => setIsModalOpen(false)} className="text-surface-400 hover:text-surface-600">
+                                ✕
+                            </button>
+                        </div>
+                        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-surface-700 mb-1">Type</label>
+                                    <select name="type" value={formData.type} onChange={(e) => {
+                                        const newType = e.target.value;
+                                        setFormData({
+                                            ...formData,
+                                            type: newType,
+                                            category: newType === 'Income' ? incomeCategories[0] : expenseCategories[0]
+                                        });
+                                    }} className="input-field cursor-pointer">
+                                        <option value="Expense">Expense (Money Out)</option>
+                                        <option value="Income">Income (Money In)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-surface-700 mb-1">Amount (₹) *</label>
+                                    <input required type="number" step="0.01" name="amount" value={formData.amount} onChange={handleInputChange} className="input-field border-surface-300" placeholder="0.00" />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-surface-700 mb-1">Category</label>
+                                <select name="category" value={formData.category} onChange={handleInputChange} className="input-field cursor-pointer">
+                                    {(formData.type === 'Income' ? incomeCategories : expenseCategories).map(opt => (
+                                        <option key={opt} value={opt}>{opt}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-surface-700 mb-1">Description (Optional)</label>
+                                <textarea name="description" value={formData.description} onChange={handleInputChange} rows={2} className="input-field border-surface-300" placeholder="What was this for?" />
+                            </div>
+
+                            <div className="pt-4 flex justify-end gap-3 border-t border-surface-100 mt-6 pt-4">
+                                <button type="button" onClick={() => setIsModalOpen(false)} className="btn-secondary">Cancel</button>
+                                <button type="submit" disabled={isSubmitting} className="btn-primary flex items-center gap-2">
+                                    {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save Transaction"}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }

@@ -15,6 +15,57 @@ export default function MilkOperations() {
     const [loading, setLoading] = useState(true);
     const [collectionData, setCollectionData] = useState([]);
 
+    // Form State
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [formData, setFormData] = useState({
+        type: 'Cow',
+        source_destination: 'Collection',
+        volume: '',
+        fat: '',
+        snf: ''
+    });
+
+    const handleInputChange = (e) => {
+        setFormData({ ...formData, [e.target.name]: e.target.value });
+    };
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setIsSubmitting(true);
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) throw new Error("Not authenticated");
+
+            const { error } = await supabase.from('milk_logs').insert([{
+                user_id: user.id,
+                type: formData.type,
+                source_destination: formData.source_destination,
+                volume: Number(formData.volume),
+                fat: formData.fat ? Number(formData.fat) : null,
+                snf: formData.snf ? Number(formData.snf) : null
+            }]);
+
+            if (error) throw error;
+
+            // Refresh data
+            const { data, fetchError } = await supabase
+                .from('milk_logs')
+                .select('*')
+                .eq('user_id', user.id)
+                .order('created_at', { ascending: false });
+            if (!fetchError) setCollectionData(data || []);
+
+            setIsModalOpen(false);
+            setFormData({ type: 'Cow', source_destination: 'Collection', volume: '', fat: '', snf: '' });
+        } catch (err) {
+            console.error("Error submitting:", err.message);
+            alert("Failed to save entry: " + err.message);
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
     useEffect(() => {
         async function fetchMilkLogs() {
             try {
@@ -56,7 +107,7 @@ export default function MilkOperations() {
                     <button className="btn-secondary flex items-center gap-2">
                         <Download className="h-4 w-4" /> Export
                     </button>
-                    <button className="btn-primary flex items-center gap-2">
+                    <button onClick={() => setIsModalOpen(true)} className="btn-primary flex items-center gap-2">
                         <Plus className="h-4 w-4" /> Log Collection
                     </button>
                 </div>
@@ -155,6 +206,58 @@ export default function MilkOperations() {
                     </div>
                 )}
             </div>
+
+            {/* Add Entry Modal */}
+            {isModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">
+                        <div className="px-6 py-4 border-b border-surface-200 flex justify-between items-center">
+                            <h2 className="text-lg font-bold text-surface-900">Log Milk Activity</h2>
+                            <button onClick={() => setIsModalOpen(false)} className="text-surface-400 hover:text-surface-600">
+                                ✕
+                            </button>
+                        </div>
+                        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-surface-700 mb-1">Livestock Type</label>
+                                    <select name="type" value={formData.type} onChange={handleInputChange} className="input-field cursor-pointer">
+                                        <option value="Cow">Cow</option>
+                                        <option value="Buffalo">Buffalo</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-surface-700 mb-1">Activity</label>
+                                    <select name="source_destination" value={formData.source_destination} onChange={handleInputChange} className="input-field cursor-pointer">
+                                        <option value="Collection">Collection</option>
+                                        <option value="Dispatch">Dispatch</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-surface-700 mb-1">Volume (Liters) *</label>
+                                <input required type="number" step="0.1" name="volume" value={formData.volume} onChange={handleInputChange} className="input-field border-surface-300" placeholder="e.g. 150" />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-surface-700 mb-1">Fat % (Optional)</label>
+                                    <input type="number" step="0.1" name="fat" value={formData.fat} onChange={handleInputChange} className="input-field border-surface-300" placeholder="e.g. 4.5" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-surface-700 mb-1">SNF % (Optional)</label>
+                                    <input type="number" step="0.1" name="snf" value={formData.snf} onChange={handleInputChange} className="input-field border-surface-300" placeholder="e.g. 8.5" />
+                                </div>
+                            </div>
+                            <div className="pt-4 flex justify-end gap-3">
+                                <button type="button" onClick={() => setIsModalOpen(false)} className="btn-secondary">Cancel</button>
+                                <button type="submit" disabled={isSubmitting} className="btn-primary flex items-center gap-2">
+                                    {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save Entry"}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }
