@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import {
   ArrowUpRight,
@@ -15,6 +16,8 @@ import {
 import CollectionChart from './components/CollectionChart'
 
 export default function Dashboard() {
+  const router = useRouter();
+  const [showNewEntryMenu, setShowNewEntryMenu] = useState(false);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
     totalCollection: 0,
@@ -187,9 +190,25 @@ export default function Dashboard() {
             Welcome back, Admin. Here's what's happening today.
           </p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex gap-3 relative">
           <button onClick={handleExport} className="btn-secondary">Export Report</button>
-          <button className="btn-primary">New Entry</button>
+
+          <div className="relative">
+            <button onClick={() => setShowNewEntryMenu(!showNewEntryMenu)} className="btn-primary">New Entry</button>
+            {showNewEntryMenu && (
+              <div className="absolute right-0 mt-2 w-56 bg-white border border-surface-200 rounded-xl shadow-xl z-50 overflow-hidden">
+                <button onClick={() => router.push('/milk')} className="w-full text-left px-4 py-3 hover:bg-surface-50 text-sm font-medium text-surface-700 border-b border-surface-100 flex items-center gap-3 transition-colors">
+                  <Droplets className="h-4 w-4 text-primary-500" /> Log Milk Collection
+                </button>
+                <button onClick={() => router.push('/financials')} className="w-full text-left px-4 py-3 hover:bg-surface-50 text-sm font-medium text-surface-700 border-b border-surface-100 flex items-center gap-3 transition-colors">
+                  <IndianRupee className="h-4 w-4 text-green-500" /> Add Transaction
+                </button>
+                <button onClick={() => router.push('/inventory')} className="w-full text-left px-4 py-3 hover:bg-surface-50 text-sm font-medium text-surface-700 flex items-center gap-3 transition-colors">
+                  <Wheat className="h-4 w-4 text-yellow-500" /> Update Inventory
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
