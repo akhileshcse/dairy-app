@@ -1,0 +1,53 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary-50: #f0fdf4;
+  --color-primary-100: #dcfce7;
+  --color-primary-500: #22c55e;
+  --color-primary-600: #16a34a;
+  --color-primary-700: #15803d;
+  --color-primary-800: #166534;
+  --color-primary-900: #14532d;
+
+  --color-accent-500: #3b82f6;
+
+  --color-surface-50: #f8fafc;
+  --color-surface-100: #f1f5f9;
+  --color-surface-200: #e2e8f0;
+  --color-surface-300: #cbd5e1;
+  --color-surface-400: #94a3b8;
+  --color-surface-500: #64748b;
+  --color-surface-600: #475569;
+  --color-surface-700: #334155;
+  --color-surface-800: #1e293b;
+  --color-surface-900: #0f172a;
+}
+
+/* Base styles for a clean, modern aesthetic */
+@layer base {
+  body {
+    @apply bg-surface-50 text-surface-900 antialiased selection:bg-primary-100 selection:text-primary-900;
+  }
+}
+
+@layer components {
+  .glass-panel {
+    @apply bg-white/80 backdrop-blur-md border border-white/20 shadow-sm rounded-2xl;
+  }
+
+  .card {
+    @apply bg-white rounded-2xl shadow-sm border border-surface-100 overflow-hidden;
+  }
+
+  .btn-primary {
+    @apply bg-primary-600 text-white hover:bg-primary-700 focus:ring-4 focus:ring-primary-100 font-medium rounded-xl text-sm px-5 py-2.5 transition-all active:scale-95;
+  }
+
+  .btn-secondary {
+    @apply bg-white text-surface-800 hover:bg-surface-50 border border-surface-200 focus:ring-4 focus:ring-surface-100 font-medium rounded-xl text-sm px-5 py-2.5 transition-all active:scale-95;
+  }
+
+  .input-field {
+    @apply bg-surface-50 border border-surface-200 text-surface-900 text-sm rounded-xl focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 transition-colors;
+  }
+}

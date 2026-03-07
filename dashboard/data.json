@@ -1,0 +1,19 @@
+{
+  "milkLogs": [],
+  "livestock": {
+    "cows": {
+      "milking": 0,
+      "dry": 0,
+      "heifer": 0,
+      "calves": 0
+    },
+    "buffaloes": {
+      "milking": 0,
+      "dry": 0,
+      "heifer": 0,
+      "calves": 0
+    }
+  },
+  "healthLogs": [],
+  "inventoryLogs": []
+}
