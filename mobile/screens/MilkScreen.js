@@ -8,9 +8,11 @@ export default function MilkScreen() {
 
     // Form State
     const [volume, setVolume] = useState('');
+    const [rate, setRate] = useState('');
     const [fat, setFat] = useState('');
     const [snf, setSnf] = useState('');
     const [destination, setDestination] = useState('');
+    const [shift, setShift] = useState('Morning');
 
     const handleSubmit = async () => {
         if (!volume) {
@@ -29,7 +31,9 @@ export default function MilkScreen() {
                 user_id: user.id,
                 type: activeTab === 'collection' ? 'Collection' : 'Dispatch',
                 source: activeTab === 'collection' ? (source === 'cow' ? 'Cow' : 'Buffalo') : null,
+                shift: shift,
                 volume: parseFloat(volume),
+                rate_per_litre: rate ? parseFloat(rate) : null,
                 fat_percent: fat ? parseFloat(fat) : null,
                 snf_percent: snf ? parseFloat(snf) : null,
                 destination: destination || null,
@@ -38,7 +42,7 @@ export default function MilkScreen() {
             if (error) throw error;
 
             Alert.alert('Success', `${activeTab === 'collection' ? 'Collection' : 'Dispatch'} Logged Successfully!`);
-            setVolume(''); setFat(''); setSnf(''); setDestination('');
+            setVolume(''); setRate(''); setFat(''); setSnf(''); setDestination('');
         } catch (err) {
             console.error(err);
             Alert.alert('Error', 'Failed to save to database.');
@@ -82,14 +86,44 @@ export default function MilkScreen() {
                             </TouchableOpacity>
                         </View>
 
-                        <Text style={styles.label}>Volume (Liters) *</Text>
-                        <TextInput
-                            style={styles.input}
-                            keyboardType="numeric"
-                            placeholder="e.g. 15.5"
-                            value={volume}
-                            onChangeText={setVolume}
-                        />
+                        <Text style={styles.sectionTitle}>Shift</Text>
+                        <View style={styles.sourceSelector}>
+                            <TouchableOpacity
+                                style={[styles.sourceButton, shift === 'Morning' && styles.activeShift]}
+                                onPress={() => setShift('Morning')}
+                            >
+                                <Text style={[styles.sourceText, shift === 'Morning' && styles.activeSourceText]}>Morning</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.sourceButton, shift === 'Evening' && styles.activeShift]}
+                                onPress={() => setShift('Evening')}
+                            >
+                                <Text style={[styles.sourceText, shift === 'Evening' && styles.activeSourceText]}>Evening</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        <View style={styles.row}>
+                            <View style={styles.halfInputContainer}>
+                                <Text style={styles.label}>Volume (Liters) *</Text>
+                                <TextInput
+                                    style={styles.input}
+                                    keyboardType="numeric"
+                                    placeholder="e.g. 15.5"
+                                    value={volume}
+                                    onChangeText={setVolume}
+                                />
+                            </View>
+                            <View style={styles.halfInputContainer}>
+                                <Text style={styles.label}>Rate / L (₹)</Text>
+                                <TextInput
+                                    style={styles.input}
+                                    keyboardType="numeric"
+                                    placeholder="e.g. 52.5"
+                                    value={rate}
+                                    onChangeText={setRate}
+                                />
+                            </View>
+                        </View>
 
                         <View style={styles.row}>
                             <View style={styles.halfInputContainer}>
@@ -117,14 +151,44 @@ export default function MilkScreen() {
                 ) : (
                     <>
                         <Text style={styles.sectionTitle}>Dispatch Details</Text>
-                        <Text style={styles.label}>Volume (Liters) *</Text>
-                        <TextInput
-                            style={styles.input}
-                            keyboardType="numeric"
-                            placeholder="e.g. 50"
-                            value={volume}
-                            onChangeText={setVolume}
-                        />
+                        <Text style={styles.sectionTitle}>Shift</Text>
+                        <View style={styles.sourceSelector}>
+                            <TouchableOpacity
+                                style={[styles.sourceButton, shift === 'Morning' && styles.activeShift]}
+                                onPress={() => setShift('Morning')}
+                            >
+                                <Text style={[styles.sourceText, shift === 'Morning' && styles.activeSourceText]}>Morning</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.sourceButton, shift === 'Evening' && styles.activeShift]}
+                                onPress={() => setShift('Evening')}
+                            >
+                                <Text style={[styles.sourceText, shift === 'Evening' && styles.activeSourceText]}>Evening</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        <View style={styles.row}>
+                            <View style={styles.halfInputContainer}>
+                                <Text style={styles.label}>Volume (Liters) *</Text>
+                                <TextInput
+                                    style={styles.input}
+                                    keyboardType="numeric"
+                                    placeholder="e.g. 50"
+                                    value={volume}
+                                    onChangeText={setVolume}
+                                />
+                            </View>
+                            <View style={styles.halfInputContainer}>
+                                <Text style={styles.label}>Rate / L (₹)</Text>
+                                <TextInput
+                                    style={styles.input}
+                                    keyboardType="numeric"
+                                    placeholder="e.g. 45"
+                                    value={rate}
+                                    onChangeText={setRate}
+                                />
+                            </View>
+                        </View>
 
                         <Text style={styles.label}>Destination / Buyer *</Text>
                         <TextInput
@@ -217,6 +281,10 @@ const styles = StyleSheet.create({
     activeSourceBuffalo: {
         backgroundColor: '#1f2937', // gray-800
         borderColor: '#1f2937',
+    },
+    activeShift: {
+        backgroundColor: '#059669', // emerald-600
+        borderColor: '#059669',
     },
     sourceText: {
         fontSize: 16,

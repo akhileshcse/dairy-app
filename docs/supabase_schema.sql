@@ -8,7 +8,9 @@ CREATE TABLE IF NOT EXISTS milk_logs (
     user_id UUID REFERENCES auth.users(id),
     type TEXT NOT NULL,
     source_destination TEXT,
+    shift TEXT,
     volume NUMERIC NOT NULL,
+    rate_per_litre NUMERIC,
     fat NUMERIC,
     snf NUMERIC
 );

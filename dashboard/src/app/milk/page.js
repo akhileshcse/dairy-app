@@ -21,7 +21,9 @@ export default function MilkOperations() {
     const [formData, setFormData] = useState({
         type: 'Cow',
         source_destination: 'Collection',
+        shift: 'Morning',
         volume: '',
+        rate_per_litre: '',
         fat: '',
         snf: ''
     });
@@ -41,7 +43,9 @@ export default function MilkOperations() {
                 user_id: user.id,
                 type: formData.type,
                 source_destination: formData.source_destination,
+                shift: formData.shift,
                 volume: Number(formData.volume),
+                rate_per_litre: formData.rate_per_litre ? Number(formData.rate_per_litre) : null,
                 fat: formData.fat ? Number(formData.fat) : null,
                 snf: formData.snf ? Number(formData.snf) : null
             }]);
@@ -57,7 +61,7 @@ export default function MilkOperations() {
             if (!fetchError) setCollectionData(data || []);
 
             setIsModalOpen(false);
-            setFormData({ type: 'Cow', source_destination: 'Collection', volume: '', fat: '', snf: '' });
+            setFormData({ type: 'Cow', source_destination: 'Collection', shift: 'Morning', volume: '', rate_per_litre: '', fat: '', snf: '' });
         } catch (err) {
             console.error("Error submitting:", err.message);
             alert("Failed to save entry: " + err.message);
@@ -136,6 +140,7 @@ export default function MilkOperations() {
                             <tr>
                                 <th scope="col" className="px-6 py-4 font-semibold">ID</th>
                                 <th scope="col" className="px-6 py-4 font-semibold">Date & Time</th>
+                                <th scope="col" className="px-6 py-4 font-semibold">Shift</th>
                                 <th scope="col" className="px-6 py-4 font-semibold">Livestock Type</th>
                                 <th scope="col" className="px-6 py-4 font-semibold">Volume</th>
                                 <th scope="col" className="px-6 py-4 font-semibold">Fat / SNF</th>
@@ -164,13 +169,17 @@ export default function MilkOperations() {
                                             {row.id.substring(0, 8).toUpperCase()}
                                         </td>
                                         <td className="px-6 py-4">{formatDateTime(row.created_at)}</td>
+                                        <td className="px-6 py-4 font-medium text-surface-600">{row.shift || '-'}</td>
                                         <td className="px-6 py-4">
                                             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${row.type?.toLowerCase() === 'cow' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'
                                                 }`}>
                                                 {row.type || 'Cow'}
                                             </span>
                                         </td>
-                                        <td className="px-6 py-4 font-semibold text-surface-900">{row.volume || '0'} L</td>
+                                        <td className="px-6 py-4 font-semibold text-surface-900">
+                                            {row.volume || '0'} L
+                                            {row.rate_per_litre && <span className="block text-xs font-normal text-surface-500 mt-0.5">₹{row.rate_per_litre}/L</span>}
+                                        </td>
                                         <td className="px-6 py-4 text-surface-500">
                                             {row.fat || '-'}% <span className="mx-1 text-surface-300">|</span> {row.snf || '-'}%
                                         </td>
@@ -232,6 +241,19 @@ export default function MilkOperations() {
                                         <option value="Collection">Collection</option>
                                         <option value="Dispatch">Dispatch</option>
                                     </select>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-surface-700 mb-1">Shift</label>
+                                    <select name="shift" value={formData.shift} onChange={handleInputChange} className="input-field cursor-pointer">
+                                        <option value="Morning">Morning</option>
+                                        <option value="Evening">Evening</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-surface-700 mb-1">Rate per Litre (₹)</label>
+                                    <input type="number" step="0.5" name="rate_per_litre" value={formData.rate_per_litre} onChange={handleInputChange} className="input-field border-surface-300" placeholder="e.g. 52.5" />
                                 </div>
                             </div>
                             <div>
