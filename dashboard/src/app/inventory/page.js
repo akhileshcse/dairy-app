@@ -274,7 +274,7 @@ export default function Inventory() {
                                     {feedOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                                 </select>
                             </div>
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-sm font-medium text-surface-700 mb-1">Update Type</label>
                                     <select name="type" value={formData.type} onChange={handleInputChange} className="input-field cursor-pointer">
