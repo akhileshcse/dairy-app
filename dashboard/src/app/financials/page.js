@@ -15,6 +15,10 @@ import {
 export default function Financials() {
     const [loading, setLoading] = useState(true);
     const [transactions, setTransactions] = useState([]);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [filterStatus, setFilterStatus] = useState('All');
+    const [currentPage, setCurrentPage] = useState(1);
+    const ITEMS_PER_PAGE = 10;
     const [summary, setSummary] = useState({
         totalIncome: 0,
         totalExpense: 0,
@@ -59,15 +63,24 @@ export default function Financials() {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) throw new Error("Not authenticated");
 
-            const { error } = await supabase.from('accounting_transactions').insert([{
-                user_id: user.id,
-                type: formData.type,
-                category: formData.category,
-                amount: Number(formData.amount) || 0,
-                description: formData.description || null
-            }]);
-
-            if (error) throw error;
+            if (formData.id) {
+                const { error } = await supabase.from('accounting_transactions').update({
+                    type: formData.type,
+                    category: formData.category,
+                    amount: Number(formData.amount) || 0,
+                    description: formData.description || null
+                }).eq('id', formData.id);
+                if (error) throw error;
+            } else {
+                const { error } = await supabase.from('accounting_transactions').insert([{
+                    user_id: user.id,
+                    type: formData.type,
+                    category: formData.category,
+                    amount: Number(formData.amount) || 0,
+                    description: formData.description || null
+                }]);
+                if (error) throw error;
+            }
 
             // Refresh data
             const { data, fetchError } = await supabase
@@ -93,7 +106,7 @@ export default function Financials() {
             }
 
             setIsModalOpen(false);
-            setFormData({ type: 'Expense', category: 'Feed & Fodder', amount: '', description: '' });
+            setFormData({ id: null, type: 'Expense', category: 'Feed & Fodder', amount: '', description: '' });
         } catch (err) {
             console.error("Error submitting:", err.message);
             alert("Failed to save entry: " + err.message);
@@ -147,6 +160,67 @@ export default function Financials() {
         return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     };
 
+    const filteredData = transactions.filter(row => {
+        const matchesSearch = row.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (row.description && row.description.toLowerCase().includes(searchTerm.toLowerCase()));
+        const matchesFilter = filterStatus === 'All' || row.type === filterStatus;
+        return matchesSearch && matchesFilter;
+    });
+
+    const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE) || 1;
+    const paginatedData = filteredData.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+
+    const handleFilterClick = () => {
+        if (filterStatus === 'All') setFilterStatus('Income');
+        else if (filterStatus === 'Income') setFilterStatus('Expense');
+        else setFilterStatus('All');
+        setCurrentPage(1);
+    };
+
+    const handleExport = () => {
+        const headers = ['ID', 'Date', 'Type', 'Category', 'Amount', 'Description'];
+        const csvContent = [
+            headers.join(','),
+            ...filteredData.map(row => [
+                row.id,
+                new Date(row.created_at).toLocaleString().replace(/,/g, ''),
+                row.type || '',
+                `"${(row.category || '').replace(/"/g, '""')}"`,
+                row.amount || 0,
+                `"${(row.description || '').replace(/"/g, '""')}"`
+            ].join(','))
+        ].join('\n');
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `financial_ledger_${new Date().toISOString().split('T')[0]}.csv`;
+        link.click();
+    };
+
+    const handleEdit = (row) => {
+        setFormData({
+            id: row.id,
+            type: row.type || 'Income',
+            category: row.category || 'Milk Sale',
+            amount: row.amount ? row.amount.toString() : '',
+            description: row.description || ''
+        });
+        setIsModalOpen(true);
+    };
+
+    const handleDelete = async (id) => {
+        if (!confirm("Are you sure you want to delete this transaction?")) return;
+        try {
+            await supabase.from('accounting_transactions').delete().eq('id', id);
+            setTransactions(prev => prev.filter(item => item.id !== id));
+
+            // Note: In a robust version, we would also recalculate the summary here.
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
     return (
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -157,10 +231,13 @@ export default function Financials() {
                     </p>
                 </div>
                 <div className="flex gap-3">
-                    <button className="btn-secondary flex items-center gap-2">
+                    <button onClick={handleExport} className="btn-secondary flex items-center gap-2">
                         <Download className="h-4 w-4" /> Export Ledger
                     </button>
-                    <button onClick={() => setIsModalOpen(true)} className="btn-primary flex items-center gap-2">
+                    <button onClick={() => {
+                        setFormData({ id: null, type: 'Income', category: 'Milk Sale', amount: '', description: '' });
+                        setIsModalOpen(true);
+                    }} className="btn-primary flex items-center gap-2">
                         <Plus className="h-4 w-4" /> Add Transaction
                     </button>
                 </div>
@@ -204,8 +281,22 @@ export default function Financials() {
 
             {/* Ledger Table */}
             <div className="card">
-                <div className="p-4 border-b border-surface-200">
-                    <h2 className="text-lg font-semibold text-surface-900">Transaction Ledger</h2>
+                <div className="p-4 border-b border-surface-200 flex flex-col sm:flex-row gap-4 justify-between items-center bg-surface-50/50">
+                    <div className="relative w-full sm:max-w-xs">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <Search className="h-4 w-4 text-surface-400" />
+                        </div>
+                        <input
+                            type="text"
+                            value={searchTerm}
+                            onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                            className="input-field pl-10"
+                            placeholder="Search by ID or Description..."
+                        />
+                    </div>
+                    <button onClick={handleFilterClick} className="btn-secondary flex items-center gap-2 text-surface-600 bg-white shadow-sm border-surface-200">
+                        <Filter className="h-4 w-4" /> Filter: {filterStatus}
+                    </button>
                 </div>
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm text-left text-surface-600">
@@ -217,24 +308,25 @@ export default function Financials() {
                                 <th scope="col" className="px-6 py-4 font-semibold">Description</th>
                                 <th scope="col" className="px-6 py-4 font-semibold">Type</th>
                                 <th scope="col" className="px-6 py-4 font-semibold text-right">Amount</th>
+                                <th scope="col" className="px-6 py-4 font-semibold text-right">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             {loading ? (
                                 <tr>
-                                    <td colSpan="6" className="px-6 py-8 text-center text-surface-500">
+                                    <td colSpan="7" className="px-6 py-8 text-center text-surface-500">
                                         <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2 text-primary-600" />
                                         Loading ledger...
                                     </td>
                                 </tr>
-                            ) : transactions.length === 0 ? (
+                            ) : filteredData.length === 0 ? (
                                 <tr>
-                                    <td colSpan="6" className="px-6 py-8 text-center text-surface-500">
+                                    <td colSpan="7" className="px-6 py-8 text-center text-surface-500">
                                         No accounting logs yet.
                                     </td>
                                 </tr>
                             ) : (
-                                transactions.map((row) => (
+                                paginatedData.map((row) => (
                                     <tr key={row.id} className="bg-white border-b border-surface-100 hover:bg-surface-50/80 transition-colors">
                                         <td className="px-6 py-4 font-medium text-surface-900 whitespace-nowrap">{row.id.substring(0, 8).toUpperCase()}</td>
                                         <td className="px-6 py-4 text-surface-500 whitespace-nowrap">{formatDateTime(row.created_at)}</td>
@@ -255,12 +347,30 @@ export default function Financials() {
                                         <td className={`px-6 py-4 text-right font-bold whitespace-nowrap ${row.type === 'Income' ? 'text-green-600' : 'text-red-600'}`}>
                                             {row.type === 'Income' ? '+' : '-'}₹ {Number(row.amount).toLocaleString()}
                                         </td>
+                                        <td className="px-6 py-4 text-right whitespace-nowrap">
+                                            <button onClick={() => handleEdit(row)} className="font-medium text-primary-600 hover:text-primary-800 transition-colors mr-3">
+                                                Edit
+                                            </button>
+                                            <button onClick={() => handleDelete(row.id)} className="font-medium text-red-600 hover:text-red-800 transition-colors">
+                                                Delete
+                                            </button>
+                                        </td>
                                     </tr>
                                 ))
                             )}
                         </tbody>
                     </table>
                 </div>
+
+                {!loading && filteredData.length > 0 && (
+                    <div className="p-4 border-t border-surface-200 flex items-center justify-between text-sm text-surface-500 bg-surface-50/50">
+                        <span>Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1} to {Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)} of {filteredData.length} entries</span>
+                        <div className="flex gap-1">
+                            <button type="button" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="px-3 py-1 border border-surface-200 rounded-lg hover:bg-surface-100 disabled:opacity-50">Prev</button>
+                            <button type="button" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="px-3 py-1 border border-surface-200 rounded-lg hover:bg-surface-100 disabled:opacity-50">Next</button>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Add Entry Modal */}

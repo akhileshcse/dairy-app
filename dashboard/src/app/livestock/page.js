@@ -13,6 +13,10 @@ import {
 export default function Livestock() {
     const [loading, setLoading] = useState(true);
     const [livestockData, setLivestockData] = useState([]);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [filterStatus, setFilterStatus] = useState('All');
+    const [currentPage, setCurrentPage] = useState(1);
+    const ITEMS_PER_PAGE = 10;
     const [summary, setSummary] = useState({
         totalCows: 0,
         totalBufs: 0,
@@ -40,21 +44,36 @@ export default function Livestock() {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) throw new Error("Not authenticated");
 
-            const { error } = await supabase.from('livestock_logs').insert([{
-                user_id: user.id,
-                type: 'Count Update',
-                cows_milking: Number(formData.cows_milking) || 0,
-                cows_dry: Number(formData.cows_dry) || 0,
-                cows_heifer: Number(formData.cows_heifer) || 0,
-                cows_calves: Number(formData.cows_calves) || 0,
-                buffaloes_milking: Number(formData.buffaloes_milking) || 0,
-                buffaloes_dry: Number(formData.buffaloes_dry) || 0,
-                buffaloes_heifer: Number(formData.buffaloes_heifer) || 0,
-                buffaloes_calves: Number(formData.buffaloes_calves) || 0,
-                health_notes: formData.health_notes || null
-            }]);
-
-            if (error) throw error;
+            if (formData.id) {
+                const { error } = await supabase.from('livestock_logs').update({
+                    type: formData.type || 'Count Update',
+                    cows_milking: Number(formData.cows_milking) || 0,
+                    cows_dry: Number(formData.cows_dry) || 0,
+                    cows_heifer: Number(formData.cows_heifer) || 0,
+                    cows_calves: Number(formData.cows_calves) || 0,
+                    buffaloes_milking: Number(formData.buffaloes_milking) || 0,
+                    buffaloes_dry: Number(formData.buffaloes_dry) || 0,
+                    buffaloes_heifer: Number(formData.buffaloes_heifer) || 0,
+                    buffaloes_calves: Number(formData.buffaloes_calves) || 0,
+                    health_notes: formData.health_notes || null
+                }).eq('id', formData.id);
+                if (error) throw error;
+            } else {
+                const { error } = await supabase.from('livestock_logs').insert([{
+                    user_id: user.id,
+                    type: 'Count Update',
+                    cows_milking: Number(formData.cows_milking) || 0,
+                    cows_dry: Number(formData.cows_dry) || 0,
+                    cows_heifer: Number(formData.cows_heifer) || 0,
+                    cows_calves: Number(formData.cows_calves) || 0,
+                    buffaloes_milking: Number(formData.buffaloes_milking) || 0,
+                    buffaloes_dry: Number(formData.buffaloes_dry) || 0,
+                    buffaloes_heifer: Number(formData.buffaloes_heifer) || 0,
+                    buffaloes_calves: Number(formData.buffaloes_calves) || 0,
+                    health_notes: formData.health_notes || null
+                }]);
+                if (error) throw error;
+            }
 
             // Refresh data
             const { data, fetchError } = await supabase
@@ -77,6 +96,8 @@ export default function Livestock() {
 
             setIsModalOpen(false);
             setFormData({
+                id: null,
+                type: 'Count Update',
                 cows_milking: '', cows_dry: '', cows_heifer: '', cows_calves: '',
                 buffaloes_milking: '', buffaloes_dry: '', buffaloes_heifer: '', buffaloes_calves: '',
                 health_notes: ''
@@ -129,6 +150,63 @@ export default function Livestock() {
         return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     };
 
+    const filteredData = livestockData.filter(row => {
+        const matchesSearch = row.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (row.health_notes && row.health_notes.toLowerCase().includes(searchTerm.toLowerCase()));
+        return matchesSearch;
+    });
+
+    const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE) || 1;
+    const paginatedData = filteredData.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+
+    const handleExport = () => {
+        const headers = ['ID', 'Date', 'Type', 'Cow Milking', 'Cow Dry', 'Cow Heifer', 'Cow Calves', 'Buf Milking', 'Buf Dry', 'Buf Heifer', 'Buf Calves', 'Notes'];
+        const csvContent = [
+            headers.join(','),
+            ...filteredData.map(row => [
+                row.id,
+                new Date(row.created_at).toLocaleString().replace(/,/g, ''),
+                row.type || '',
+                row.cows_milking || 0, row.cows_dry || 0, row.cows_heifer || 0, row.cows_calves || 0,
+                row.buffaloes_milking || 0, row.buffaloes_dry || 0, row.buffaloes_heifer || 0, row.buffaloes_calves || 0,
+                `"${(row.health_notes || '').replace(/"/g, '""')}"`
+            ].join(','))
+        ].join('\n');
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `livestock_logs_${new Date().toISOString().split('T')[0]}.csv`;
+        link.click();
+    };
+
+    const handleEdit = (row) => {
+        setFormData({
+            id: row.id,
+            type: row.type || 'Count Update',
+            cows_milking: row.cows_milking ? row.cows_milking.toString() : '',
+            cows_dry: row.cows_dry ? row.cows_dry.toString() : '',
+            cows_heifer: row.cows_heifer ? row.cows_heifer.toString() : '',
+            cows_calves: row.cows_calves ? row.cows_calves.toString() : '',
+            buffaloes_milking: row.buffaloes_milking ? row.buffaloes_milking.toString() : '',
+            buffaloes_dry: row.buffaloes_dry ? row.buffaloes_dry.toString() : '',
+            buffaloes_heifer: row.buffaloes_heifer ? row.buffaloes_heifer.toString() : '',
+            buffaloes_calves: row.buffaloes_calves ? row.buffaloes_calves.toString() : '',
+            health_notes: row.health_notes || ''
+        });
+        setIsModalOpen(true);
+    };
+
+    const handleDelete = async (id) => {
+        if (!confirm("Are you sure you want to delete this record?")) return;
+        try {
+            await supabase.from('livestock_logs').delete().eq('id', id);
+            setLivestockData(prev => prev.filter(item => item.id !== id));
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
     return (
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -139,10 +217,13 @@ export default function Livestock() {
                     </p>
                 </div>
                 <div className="flex gap-3">
-                    <button className="btn-secondary flex items-center gap-2">
-                        <Stethoscope className="h-4 w-4" /> Add Health Log
+                    <button onClick={handleExport} className="btn-secondary flex items-center gap-2">
+                        <Download className="h-4 w-4" /> Export
                     </button>
-                    <button onClick={() => setIsModalOpen(true)} className="btn-primary flex items-center gap-2">
+                    <button onClick={() => {
+                        setFormData({ id: null, type: 'Count Update', cows_milking: '', cows_dry: '', cows_heifer: '', cows_calves: '', buffaloes_milking: '', buffaloes_dry: '', buffaloes_heifer: '', buffaloes_calves: '', health_notes: '' });
+                        setIsModalOpen(true);
+                    }} className="btn-primary flex items-center gap-2">
                         <Plus className="h-4 w-4" /> Register Update
                     </button>
                 </div>
@@ -168,10 +249,19 @@ export default function Livestock() {
             </div>
 
             <div className="card">
-                <div className="p-4 border-b border-surface-200">
-                    <h2 className="text-lg font-semibold text-surface-900 flex items-center gap-2">
-                        <Activity className="h-5 w-5 text-primary-500" /> Animal Event Logs
-                    </h2>
+                <div className="p-4 border-b border-surface-200 flex flex-col sm:flex-row gap-4 justify-between items-center bg-surface-50/50">
+                    <div className="relative w-full sm:max-w-xs">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <Search className="h-4 w-4 text-surface-400" />
+                        </div>
+                        <input
+                            type="text"
+                            value={searchTerm}
+                            onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                            className="input-field pl-10"
+                            placeholder="Search by ID or Notes..."
+                        />
+                    </div>
                 </div>
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm text-left text-surface-600">
@@ -194,14 +284,14 @@ export default function Livestock() {
                                         Loading records...
                                     </td>
                                 </tr>
-                            ) : livestockData.length === 0 ? (
+                            ) : filteredData.length === 0 ? (
                                 <tr>
                                     <td colSpan="7" className="px-6 py-8 text-center text-surface-500">
                                         No livestock updates recorded yet.
                                     </td>
                                 </tr>
                             ) : (
-                                livestockData.map((row) => (
+                                paginatedData.map((row) => (
                                     <tr key={row.id} className="bg-white border-b border-surface-100 hover:bg-surface-50/80 transition-colors">
                                         <td className="px-6 py-4 font-medium text-surface-900 whitespace-nowrap">
                                             {row.id.substring(0, 8).toUpperCase()}
@@ -221,9 +311,12 @@ export default function Livestock() {
                                         <td className="px-6 py-4 text-surface-500 max-w-xs truncate">
                                             {row.health_notes || '-'}
                                         </td>
-                                        <td className="px-6 py-4 text-right">
-                                            <button className="inline-flex items-center justify-center h-8 w-8 rounded-full bg-surface-50 text-surface-500 hover:bg-primary-50 hover:text-primary-600 transition-colors">
-                                                <ArrowRight className="h-4 w-4" />
+                                        <td className="px-6 py-4 text-right whitespace-nowrap">
+                                            <button onClick={() => handleEdit(row)} className="font-medium text-primary-600 hover:text-primary-800 transition-colors mr-3">
+                                                Edit
+                                            </button>
+                                            <button onClick={() => handleDelete(row.id)} className="font-medium text-red-600 hover:text-red-800 transition-colors">
+                                                Delete
                                             </button>
                                         </td>
                                     </tr>
@@ -232,6 +325,15 @@ export default function Livestock() {
                         </tbody>
                     </table>
                 </div>
+                {!loading && filteredData.length > 0 && (
+                    <div className="p-4 border-t border-surface-200 flex items-center justify-between text-sm text-surface-500 bg-surface-50/50">
+                        <span>Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1} to {Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)} of {filteredData.length} entries</span>
+                        <div className="flex gap-1">
+                            <button type="button" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="px-3 py-1 border border-surface-200 rounded-lg hover:bg-surface-100 disabled:opacity-50">Prev</button>
+                            <button type="button" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="px-3 py-1 border border-surface-200 rounded-lg hover:bg-surface-100 disabled:opacity-50">Next</button>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Add Entry Modal */}
