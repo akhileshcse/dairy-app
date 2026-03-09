@@ -29,7 +29,7 @@ export default function MilkScreen() {
 
             const payload = {
                 user_id: user.id,
-                type: activeTab === 'collection' ? (source === 'cow' ? 'Cow' : 'Buffalo') : (destination || 'Dispatch'),
+                type: activeTab === 'collection' ? (source === 'cow' ? 'Cow' : 'Buffalo') : 'Mixed/Dispatch',
                 source_destination: activeTab === 'collection' ? 'Collection' : 'Dispatch',
                 shift: shift,
                 volume: parseFloat(volume),
