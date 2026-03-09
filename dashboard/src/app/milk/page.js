@@ -14,6 +14,10 @@ import {
 export default function MilkOperations() {
     const [loading, setLoading] = useState(true);
     const [collectionData, setCollectionData] = useState([]);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [filterStatus, setFilterStatus] = useState('All');
+    const [currentPage, setCurrentPage] = useState(1);
+    const ITEMS_PER_PAGE = 10;
 
     // Form State
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -39,18 +43,30 @@ export default function MilkOperations() {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) throw new Error("Not authenticated");
 
-            const { error } = await supabase.from('milk_logs').insert([{
-                user_id: user.id,
-                type: formData.type,
-                source_destination: formData.source_destination,
-                shift: formData.shift,
-                volume: Number(formData.volume),
-                rate_per_litre: formData.rate_per_litre ? Number(formData.rate_per_litre) : null,
-                fat: formData.fat ? Number(formData.fat) : null,
-                snf: formData.snf ? Number(formData.snf) : null
-            }]);
-
-            if (error) throw error;
+            if (formData.id) {
+                const { error } = await supabase.from('milk_logs').update({
+                    type: formData.type,
+                    source_destination: formData.source_destination,
+                    shift: formData.shift,
+                    volume: Number(formData.volume),
+                    rate_per_litre: formData.rate_per_litre ? Number(formData.rate_per_litre) : null,
+                    fat: formData.fat ? Number(formData.fat) : null,
+                    snf: formData.snf ? Number(formData.snf) : null
+                }).eq('id', formData.id);
+                if (error) throw error;
+            } else {
+                const { error } = await supabase.from('milk_logs').insert([{
+                    user_id: user.id,
+                    type: formData.type,
+                    source_destination: formData.source_destination,
+                    shift: formData.shift,
+                    volume: Number(formData.volume),
+                    rate_per_litre: formData.rate_per_litre ? Number(formData.rate_per_litre) : null,
+                    fat: formData.fat ? Number(formData.fat) : null,
+                    snf: formData.snf ? Number(formData.snf) : null
+                }]);
+                if (error) throw error;
+            }
 
             // Refresh data
             const { data, fetchError } = await supabase
@@ -98,6 +114,71 @@ export default function MilkOperations() {
         return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
     };
 
+    const filteredData = collectionData.filter(row => {
+        const matchesSearch = row.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (row.type && row.type.toLowerCase().includes(searchTerm.toLowerCase()));
+        const matchesFilter = filterStatus === 'All' || row.source_destination === filterStatus;
+        return matchesSearch && matchesFilter;
+    });
+
+    const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE) || 1;
+    const paginatedData = filteredData.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+
+    const handleFilterClick = () => {
+        if (filterStatus === 'All') setFilterStatus('Collection');
+        else if (filterStatus === 'Collection') setFilterStatus('Dispatch');
+        else setFilterStatus('All');
+        setCurrentPage(1);
+    };
+
+    const handleExport = () => {
+        const headers = ['ID', 'Date', 'Shift', 'Livestock Type', 'Volume', 'Rate/Litre', 'Fat %', 'SNF %', 'Status'];
+        const csvContent = [
+            headers.join(','),
+            ...filteredData.map(row => [
+                row.id,
+                new Date(row.created_at).toLocaleString().replace(/,/g, ''),
+                row.shift || '',
+                row.type || '',
+                row.volume || 0,
+                row.rate_per_litre || '',
+                row.fat || '',
+                row.snf || '',
+                row.source_destination || ''
+            ].join(','))
+        ].join('\n');
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `milk_logs_${new Date().toISOString().split('T')[0]}.csv`;
+        link.click();
+    };
+
+    const handleEdit = (row) => {
+        setFormData({
+            id: row.id,
+            type: row.type || 'Cow',
+            source_destination: row.source_destination || 'Collection',
+            shift: row.shift || 'Morning',
+            volume: row.volume ? row.volume.toString() : '',
+            rate_per_litre: row.rate_per_litre ? row.rate_per_litre.toString() : '',
+            fat: row.fat ? row.fat.toString() : '',
+            snf: row.snf ? row.snf.toString() : ''
+        });
+        setIsModalOpen(true);
+    };
+
+    const handleDelete = async (id) => {
+        if (!confirm("Are you sure you want to delete this record?")) return;
+        try {
+            await supabase.from('milk_logs').delete().eq('id', id);
+            setCollectionData(prev => prev.filter(item => item.id !== id));
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
     return (
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -108,10 +189,13 @@ export default function MilkOperations() {
                     </p>
                 </div>
                 <div className="flex gap-3">
-                    <button className="btn-secondary flex items-center gap-2">
+                    <button onClick={handleExport} className="btn-secondary flex items-center gap-2">
                         <Download className="h-4 w-4" /> Export
                     </button>
-                    <button onClick={() => setIsModalOpen(true)} className="btn-primary flex items-center gap-2">
+                    <button onClick={() => {
+                        setFormData({ type: 'Cow', source_destination: 'Collection', shift: 'Morning', volume: '', rate_per_litre: '', fat: '', snf: '' });
+                        setIsModalOpen(true);
+                    }} className="btn-primary flex items-center gap-2">
                         <Plus className="h-4 w-4" /> Log Collection
                     </button>
                 </div>
@@ -125,12 +209,14 @@ export default function MilkOperations() {
                         </div>
                         <input
                             type="text"
+                            value={searchTerm}
+                            onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
                             className="input-field pl-10"
                             placeholder="Search by ID or Type..."
                         />
                     </div>
-                    <button className="btn-secondary flex items-center gap-2 text-surface-600 bg-white shadow-sm border-surface-200">
-                        <Filter className="h-4 w-4" /> Filter Records
+                    <button onClick={handleFilterClick} className="btn-secondary flex items-center gap-2 text-surface-600 bg-white shadow-sm border-surface-200">
+                        <Filter className="h-4 w-4" /> Filter: {filterStatus}
                     </button>
                 </div>
 
@@ -156,14 +242,14 @@ export default function MilkOperations() {
                                         Loading records...
                                     </td>
                                 </tr>
-                            ) : collectionData.length === 0 ? (
+                            ) : filteredData.length === 0 ? (
                                 <tr>
-                                    <td colSpan="7" className="px-6 py-8 text-center text-surface-500">
+                                    <td colSpan="8" className="px-6 py-8 text-center text-surface-500">
                                         No milk collection records found.
                                     </td>
                                 </tr>
                             ) : (
-                                collectionData.map((row) => (
+                                paginatedData.map((row) => (
                                     <tr key={row.id} className="bg-white border-b border-surface-100 hover:bg-surface-50/80 transition-colors">
                                         <td className="px-6 py-4 font-medium text-surface-900 whitespace-nowrap">
                                             {row.id.substring(0, 8).toUpperCase()}
@@ -194,8 +280,11 @@ export default function MilkOperations() {
                                             </span>
                                         </td>
                                         <td className="px-6 py-4 text-right">
-                                            <button className="font-medium text-primary-600 hover:text-primary-800 transition-colors">
+                                            <button onClick={() => handleEdit(row)} className="font-medium text-primary-600 hover:text-primary-800 transition-colors mr-3">
                                                 Edit
+                                            </button>
+                                            <button onClick={() => handleDelete(row.id)} className="font-medium text-red-600 hover:text-red-800 transition-colors">
+                                                Delete
                                             </button>
                                         </td>
                                     </tr>
@@ -205,12 +294,12 @@ export default function MilkOperations() {
                     </table>
                 </div>
 
-                {!loading && collectionData.length > 0 && (
+                {!loading && filteredData.length > 0 && (
                     <div className="p-4 border-t border-surface-200 flex items-center justify-between text-sm text-surface-500 bg-surface-50/50">
-                        <span>Showing 1 to {collectionData.length} entries</span>
+                        <span>Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1} to {Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)} of {filteredData.length} entries</span>
                         <div className="flex gap-1">
-                            <button className="px-3 py-1 border border-surface-200 rounded-lg hover:bg-surface-100 disabled:opacity-50">Prev</button>
-                            <button className="px-3 py-1 border border-surface-200 rounded-lg hover:bg-surface-100 disabled:opacity-50">Next</button>
+                            <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="px-3 py-1 border border-surface-200 rounded-lg hover:bg-surface-100 disabled:opacity-50">Prev</button>
+                            <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="px-3 py-1 border border-surface-200 rounded-lg hover:bg-surface-100 disabled:opacity-50">Next</button>
                         </div>
                     </div>
                 )}
