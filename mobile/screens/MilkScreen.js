@@ -12,8 +12,6 @@ export default function MilkScreen() {
     const [snf, setSnf] = useState('');
     const [destination, setDestination] = useState('');
 
-    const API_URL = 'http://192.168.29.105:3001/api/milk';
-
     const handleSubmit = async () => {
         if (!volume) {
             Alert.alert('Error', 'Please enter a volume');
@@ -21,31 +19,29 @@ export default function MilkScreen() {
         }
 
         try {
-            const { data: { session } } = await supabase.auth.getSession();
-            const token = session?.access_token;
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) {
+                Alert.alert('Error', 'Not authenticated');
+                return;
+            }
 
-            const response = await fetch(API_URL, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({
-                    type: activeTab,
-                    source: activeTab === 'collection' ? source : null,
-                    volume: parseFloat(volume),
-                    fat: fat ? parseFloat(fat) : null,
-                    snf: snf ? parseFloat(snf) : null,
-                    destination: destination || null,
-                })
-            });
+            const { error } = await supabase.from('milk_logs').insert([{
+                user_id: user.id,
+                type: activeTab === 'collection' ? 'Collection' : 'Dispatch',
+                source: activeTab === 'collection' ? (source === 'cow' ? 'Cow' : 'Buffalo') : null,
+                volume: parseFloat(volume),
+                fat_percent: fat ? parseFloat(fat) : null,
+                snf_percent: snf ? parseFloat(snf) : null,
+                destination: destination || null,
+            }]);
 
-            if (!response.ok) throw new Error('Network error');
+            if (error) throw error;
 
             Alert.alert('Success', `${activeTab === 'collection' ? 'Collection' : 'Dispatch'} Logged Successfully!`);
             setVolume(''); setFat(''); setSnf(''); setDestination('');
         } catch (err) {
-            Alert.alert('Error', 'Failed to connect to dashboard server.');
+            console.error(err);
+            Alert.alert('Error', 'Failed to save to database.');
         }
     };
 

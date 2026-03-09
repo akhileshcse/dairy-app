@@ -9,8 +9,6 @@ export default function InventoryScreen() {
     const [amount, setAmount] = useState('');
     const [notes, setNotes] = useState('');
 
-    const API_URL = 'http://192.168.29.105:3001/api/inventory';
-
     const handleSubmit = async () => {
         if (!amount) {
             Alert.alert('Error', 'Please enter an amount.');
@@ -18,27 +16,31 @@ export default function InventoryScreen() {
         }
 
         try {
-            const { data: { session } } = await supabase.auth.getSession();
-            const token = session?.access_token;
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) {
+                Alert.alert('Error', 'Not authenticated');
+                return;
+            }
 
-            const resp = await fetch(API_URL, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({
-                    type: activeTab,
-                    feedType,
-                    amount: parseFloat(amount),
-                    notes: activeTab === 'restock' ? notes : null
-                })
-            });
-            if (!resp.ok) throw new Error('Network Error');
+            let mappedFeedType = '';
+            if (feedType === 'dry') mappedFeedType = 'Dry Fodder (Bhusa)';
+            else if (feedType === 'green') mappedFeedType = 'Green Fodder';
+            else mappedFeedType = 'Other Feed';
+
+            const { error } = await supabase.from('inventory_logs').insert([{
+                user_id: user.id,
+                feed_type: mappedFeedType,
+                type: activeTab === 'restock' ? 'Add_Stock' : 'Consume_Stock',
+                amount: parseFloat(amount),
+                notes: activeTab === 'restock' ? notes : null
+            }]);
+
+            if (error) throw error;
             Alert.alert('Success', `Feed ${activeTab === 'usage' ? 'Usage' : 'Restock'} Logged!`);
             setAmount(''); setNotes('');
         } catch (err) {
-            Alert.alert('Error', 'Failed to connect to dashboard server.');
+            console.error(err);
+            Alert.alert('Error', 'Failed to connect to database.');
         }
     };
 

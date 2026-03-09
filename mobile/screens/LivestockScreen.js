@@ -15,25 +15,29 @@ export default function LivestockScreen() {
         setCounts(prev => ({ ...prev, [key]: Math.max(0, prev[key] + delta) }));
     };
 
-    const API_URL = 'http://192.168.29.105:3001/api/livestock';
-
     const handleSaveCounts = async () => {
         try {
-            const { data: { session } } = await supabase.auth.getSession();
-            const token = session?.access_token;
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) throw new Error("Not authenticated");
 
-            const resp = await fetch(API_URL, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({ type: 'count', counts })
-            });
-            if (!resp.ok) throw new Error('Network Error');
+            const { error } = await supabase.from('livestock_logs').insert([{
+                user_id: user.id,
+                cows_milking: counts.cowMilking,
+                cows_dry: counts.cowDry,
+                cows_heifer: counts.cowHeifer,
+                cows_calves: counts.cowCalves,
+                buffaloes_milking: counts.buffaloMilking,
+                buffaloes_dry: counts.buffaloDry,
+                buffaloes_heifer: counts.buffaloHeifer,
+                buffaloes_calves: counts.buffaloCalves,
+                health_notes: null
+            }]);
+
+            if (error) throw error;
             Alert.alert('Success', 'Livestock counts updated successfully!');
         } catch (err) {
-            Alert.alert('Error', 'Failed to connect to dashboard server.');
+            console.error(err);
+            Alert.alert('Error', 'Failed to save to database.');
         }
     };
 
@@ -48,22 +52,23 @@ export default function LivestockScreen() {
         }
 
         try {
-            const { data: { session } } = await supabase.auth.getSession();
-            const token = session?.access_token;
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) throw new Error("Not authenticated");
 
-            const resp = await fetch(API_URL, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({ type: 'health', animalId, healthNotes })
-            });
-            if (!resp.ok) throw new Error('Network Error');
+            // Save health logs to livestock_logs
+            const { error } = await supabase.from('livestock_logs').insert([{
+                user_id: user.id,
+                health_notes: `[${animalId}] ${healthNotes}`,
+                cows_milking: 0, cows_dry: 0, cows_heifer: 0, cows_calves: 0,
+                buffaloes_milking: 0, buffaloes_dry: 0, buffaloes_heifer: 0, buffaloes_calves: 0
+            }]);
+
+            if (error) throw error;
             Alert.alert('Success', `Health log for ${animalId} saved!`);
             setAnimalId(''); setHealthNotes('');
         } catch (err) {
-            Alert.alert('Error', 'Failed to connect to dashboard server.');
+            console.error(err);
+            Alert.alert('Error', 'Failed to save to database.');
         }
     };
 
