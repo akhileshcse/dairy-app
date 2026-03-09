@@ -27,17 +27,18 @@ export default function MilkScreen() {
                 return;
             }
 
-            const { error } = await supabase.from('milk_logs').insert([{
+            const payload = {
                 user_id: user.id,
-                type: activeTab === 'collection' ? 'Collection' : 'Dispatch',
-                source: activeTab === 'collection' ? (source === 'cow' ? 'Cow' : 'Buffalo') : null,
+                type: activeTab === 'collection' ? (source === 'cow' ? 'Cow' : 'Buffalo') : (destination || 'Dispatch'),
+                source_destination: activeTab === 'collection' ? 'Collection' : 'Dispatch',
                 shift: shift,
                 volume: parseFloat(volume),
                 rate_per_litre: rate ? parseFloat(rate) : null,
-                fat_percent: fat ? parseFloat(fat) : null,
-                snf_percent: snf ? parseFloat(snf) : null,
-                destination: destination || null,
-            }]);
+                fat: fat ? parseFloat(fat) : null,
+                snf: snf ? parseFloat(snf) : null,
+            };
+
+            const { error } = await supabase.from('milk_logs').insert([payload]);
 
             if (error) throw error;
 
@@ -45,7 +46,7 @@ export default function MilkScreen() {
             setVolume(''); setRate(''); setFat(''); setSnf(''); setDestination('');
         } catch (err) {
             console.error(err);
-            Alert.alert('Error', 'Failed to save to database.');
+            Alert.alert('Error', `Failed to save to database. ${err.message || ''}`);
         }
     };
 
