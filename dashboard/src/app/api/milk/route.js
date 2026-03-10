@@ -32,7 +32,6 @@ export async function GET(req) {
         type: log.type,
         volume: log.volume,
         source: log.source_destination,
-        destination: log.source_destination,
         fat: log.fat,
         snf: log.snf
     }));
