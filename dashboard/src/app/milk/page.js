@@ -132,20 +132,24 @@ export default function MilkOperations() {
     };
 
     const handleExport = () => {
-        const headers = ['ID', 'Date', 'Shift', 'Livestock Type', 'Volume', 'Rate/Litre', 'Fat %', 'SNF %', 'Status'];
+        const headers = ['ID', 'Date', 'Shift', 'Livestock Type', 'Volume', 'Rate/Litre', 'Total Price', 'Fat %', 'SNF %', 'Status'];
         const csvContent = [
             headers.join(','),
-            ...filteredData.map(row => [
-                row.id,
-                new Date(row.created_at).toLocaleString().replace(/,/g, ''),
-                row.shift || '',
-                row.type || '',
-                row.volume || 0,
-                row.rate_per_litre || '',
-                row.fat || '',
-                row.snf || '',
-                row.source_destination || ''
-            ].join(','))
+            ...filteredData.map(row => {
+                const total = (row.volume && row.rate_per_litre) ? (Number(row.volume) * Number(row.rate_per_litre)).toFixed(2) : 0;
+                return [
+                    row.id,
+                    new Date(row.created_at).toLocaleString().replace(/,/g, ''),
+                    row.shift || '',
+                    row.type || '',
+                    row.volume || 0,
+                    row.rate_per_litre || '',
+                    total,
+                    row.fat || '',
+                    row.snf || '',
+                    row.source_destination || ''
+                ].join(',');
+            })
         ].join('\n');
 
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -229,6 +233,7 @@ export default function MilkOperations() {
                                 <th scope="col" className="px-6 py-4 font-semibold">Shift</th>
                                 <th scope="col" className="px-6 py-4 font-semibold">Livestock Type</th>
                                 <th scope="col" className="px-6 py-4 font-semibold">Volume</th>
+                                <th scope="col" className="px-6 py-4 font-semibold">Total Price</th>
                                 <th scope="col" className="px-6 py-4 font-semibold">Fat / SNF</th>
                                 <th scope="col" className="px-6 py-4 font-semibold">Status</th>
                                 <th scope="col" className="px-6 py-4 font-semibold text-right">Actions</th>
@@ -249,46 +254,52 @@ export default function MilkOperations() {
                                     </td>
                                 </tr>
                             ) : (
-                                paginatedData.map((row) => (
-                                    <tr key={row.id} className="bg-white border-b border-surface-100 hover:bg-surface-50/80 transition-colors">
-                                        <td className="px-6 py-4 font-medium text-surface-900 whitespace-nowrap">
-                                            {row.id.substring(0, 8).toUpperCase()}
-                                        </td>
-                                        <td className="px-6 py-4">{formatDateTime(row.created_at)}</td>
-                                        <td className="px-6 py-4 font-medium text-surface-600">{row.shift || '-'}</td>
-                                        <td className="px-6 py-4">
-                                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${row.type?.toLowerCase() === 'cow' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'
-                                                }`}>
-                                                {row.type || 'Cow'}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 font-semibold text-surface-900">
-                                            {row.volume || '0'} L
-                                            {row.rate_per_litre && <span className="block text-xs font-normal text-surface-500 mt-0.5">₹{row.rate_per_litre}/L</span>}
-                                        </td>
-                                        <td className="px-6 py-4 text-surface-500">
-                                            {row.fat || '-'}% <span className="mx-1 text-surface-300">|</span> {row.snf || '-'}%
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border ${row.source_destination === 'Dispatch'
-                                                ? 'bg-blue-50 text-blue-700 border-blue-200'
-                                                : 'bg-green-50 text-green-700 border-green-200'
-                                                }`}>
-                                                <span className={`h-1.5 w-1.5 rounded-full ${row.source_destination === 'Dispatch' ? 'bg-blue-500' : 'bg-green-500'
-                                                    }`}></span>
-                                                {row.source_destination || 'Collection'}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 text-right">
-                                            <button onClick={() => handleEdit(row)} className="font-medium text-primary-600 hover:text-primary-800 transition-colors mr-3">
-                                                Edit
-                                            </button>
-                                            <button onClick={() => handleDelete(row.id)} className="font-medium text-red-600 hover:text-red-800 transition-colors">
-                                                Delete
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))
+                                paginatedData.map((row) => {
+                                    const totalPrice = (row.volume && row.rate_per_litre) ? (Number(row.volume) * Number(row.rate_per_litre)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00';
+                                    return (
+                                        <tr key={row.id} className="bg-white border-b border-surface-100 hover:bg-surface-50/80 transition-colors">
+                                            <td className="px-6 py-4 font-medium text-surface-900 whitespace-nowrap">
+                                                {row.id.substring(0, 8).toUpperCase()}
+                                            </td>
+                                            <td className="px-6 py-4">{formatDateTime(row.created_at)}</td>
+                                            <td className="px-6 py-4 font-medium text-surface-600">{row.shift || '-'}</td>
+                                            <td className="px-6 py-4">
+                                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${row.type?.toLowerCase() === 'cow' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'
+                                                    }`}>
+                                                    {row.type || 'Cow'}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 font-semibold text-surface-900">
+                                                {row.volume || '0'} L
+                                                {row.rate_per_litre && <span className="block text-xs font-normal text-surface-500 mt-0.5">₹{row.rate_per_litre}/L</span>}
+                                            </td>
+                                            <td className="px-6 py-4 font-bold text-surface-900">
+                                                ₹{totalPrice}
+                                            </td>
+                                            <td className="px-6 py-4 text-surface-500">
+                                                {row.fat || '-'}% <span className="mx-1 text-surface-300">|</span> {row.snf || '-'}%
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border ${row.source_destination === 'Dispatch'
+                                                    ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                                    : 'bg-green-50 text-green-700 border-green-200'
+                                                    }`}>
+                                                    <span className={`h-1.5 w-1.5 rounded-full ${row.source_destination === 'Dispatch' ? 'bg-blue-500' : 'bg-green-500'
+                                                        }`}></span>
+                                                    {row.source_destination || 'Collection'}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 text-right">
+                                                <button onClick={() => handleEdit(row)} className="font-medium text-primary-600 hover:text-primary-800 transition-colors mr-3">
+                                                    Edit
+                                                </button>
+                                                <button onClick={() => handleDelete(row.id)} className="font-medium text-red-600 hover:text-red-800 transition-colors">
+                                                    Delete
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    );
+                                })
                             )}
                         </tbody>
                     </table>
