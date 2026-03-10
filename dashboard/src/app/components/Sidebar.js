@@ -23,6 +23,7 @@ const navigation = [
     { name: "Livestock", href: "/livestock", icon: Activity },
     { name: "Inventory", href: "/inventory", icon: Wheat },
     { name: "Financials", href: "/financials", icon: Wallet },
+    { name: "Team & Roles", href: "/team", icon: Settings },
 ]
 
 export default function Sidebar() {
